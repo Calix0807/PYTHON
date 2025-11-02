@@ -267,7 +267,7 @@ def require_login():
 api.add_resource(Rooms, '/api/v1/rooms/')
 api.add_resource(Room, '/api/v1/rooms/<int:id>')
 api.add_resource(Schedules, '/api/v1/schedules/')
-api.add_resource(RoomScheds, '/api/v1/schedules/<int:id>')
+api.add_resource(RoomScheds, '/api/v1/schedules/<string:room_tag>')
 
 # @app.route("/home")
 # def home_page():
