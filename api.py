@@ -255,7 +255,7 @@ def home_page():
 @app.before_request
 def require_login():
     allowed_routes = ["login_page", "static", "root_redirect"]
-    if request.path.startswith("https://bsu-map.onrender.com/api/") :
+    if request.path.startswith("/api/"):
         return
     if request.endpoint in allowed_routes:
         return
