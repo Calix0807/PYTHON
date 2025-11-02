@@ -254,13 +254,13 @@ def home_page():
 # Protect pages: require login for specific routes
 @app.before_request
 def require_login():
-    allowed_routes = ["login_page", "static", "root_redirect"]
-    if request.path.startswith("/api/"):
-        return
-    if request.endpoint in allowed_routes:
-        return
-    if request.endpoint not in allowed_routes and not session.get("logged_in"):
-        return redirect(url_for("login_page"))
+    allowed_routes = ["login_page", "static", "root_redirect"]
+    if request.path.startswith("/api/"):
+        return
+    if request.endpoint in allowed_routes:
+        return
+    if request.endpoint not in allowed_routes and not session.get("logged_in"):
+        return redirect(url_for("login_page"))
 
 
 # REST request api url
