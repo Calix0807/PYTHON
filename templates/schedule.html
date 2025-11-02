@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Schedule Manager</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 30px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .message {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f1f1f1;
+    }
+    .action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      margin: 0 5px;
+    }
+    .delete-btn { color: red; }
+    .delete-btn:hover { color: darkred; }
+    .edit-btn { color: green; }
+    .edit-btn:hover { color: darkgreen; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+      <button onclick="window.location.href='/home'" style="background:#6c757d; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;">← Back</button>
+    </div>
+    <h2>Add Schedule</h2>
+    <form id="scheduleForm">
+      <label for="room">Room</label>
+      <select id="room" name="room" required>
+        <option value="">Select a room</option>
+      </select>
+
+      <label for="day">Day of the Week</label>
+      <select id="day" name="day" required>
+        <option value="">Select a day</option>
+        <option value="Mon">Monday</option>
+        <option value="Tue">Tuesday</option>
+        <option value="Wed">Wednesday</option>
+        <option value="Thu">Thursday</option>
+        <option value="Fri">Friday</option>
+        <option value="Sat">Saturday</option>
+        <option value="Sun">Sunday</option>
+      </select>
+
+      <label for="start">Start Time</label>
+      <input type="time" id="start" name="start" required>
+
+      <label for="end">End Time</label>
+      <input type="time" id="end" name="end" required>
+
+      <label for="subject">Subject</label>
+      <input type="text" id="subject" name="subject" required>
+
+      <label for="section">Section</label>
+      <input type="text" id="section" name="section" required>
+  
+      <label for="teacher">Teacher</label>
+      <input type="text" id="teacher" name="teacher" required>
+
+      <button type="submit">Save Schedule</button>
+    </form>
+    <div id="message" class="message"></div>
+
+    <h2>Existing Schedules</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Room</th>
+          <th>Day</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Subject</th>
+          <th>Section</th>
+          <th>Teacher</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="schedulesTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function loadRooms() {
+      try {
+        const res = await fetch("/api/v1/rooms/");
+        const data = await res.json();
+        const roomSelect = document.getElementById("room");
+        roomSelect.innerHTML = `<option value="">Select a room</option>`;
+
+        data.forEach(r => {
+          const option = document.createElement("option");
+          option.value = r.tag;   // backend will store tag (like "mb-101")
+          option.textContent = r.name; // user sees room name
+          roomSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error("Failed to load rooms:", err);
+      }
+    }
+
+    async function loadSchedules() {
+      try {
+        const res = await fetch("/api/v1/schedules/");
+        const data = await res.json();
+        const tableBody = document.getElementById("schedulesTable");
+        tableBody.innerHTML = "";
+
+        // Expecting API to return array of schedules including room_tag
+        data.forEach(s => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${s.room_tag}</td>
+            <td>${s.day}</td>
+            <td>${s.start}</td>
+            <td>${s.end}</td>
+            <td>${s.subject}</td>
+            <td>${s.section}</td>
+            <td>${s.teacher}</td>
+            <td>
+              <button class="action-btn edit-btn" onclick="editSchedule(${s.id})">✏️</button>
+              <button class="action-btn delete-btn" onclick="deleteSchedule(${s.id})">🗑️</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+      } catch (err) {
+        console.error("Failed to load schedules:", err);
+      }
+    }
+
+    async function deleteSchedule(id) {
+      if (!confirm("Are you sure you want to delete this schedule?")) return;
+      try {
+        const res = await fetch(`/api/v1/schedules/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          document.getElementById("message").textContent = "✅ Schedule deleted!";
+          document.getElementById("message").style.color = "green";
+          loadSchedules();
+        } else {
+          const errText = await res.text();
+          document.getElementById("message").textContent = "❌ Failed: " + errText;
+          document.getElementById("message").style.color = "red";
+        }
+      } catch (err) {
+        console.error("Error deleting schedule:", err);
+      }
+    }
+
+     async function editSchedule(id) {
+    try {
+      const res = await fetch(`/api/v1/schedules/`);
+      const data = await res.json();
+      const sched = data.find(s => s.id === id);
+      if (!sched) return alert("Schedule not found.");
+
+      const newDay = prompt("Enter new day (Mon/Tue/Wed/Thu/Fri/Sat/Sun):", sched.day);
+      if (!newDay) return;
+
+      const newStart = prompt("Enter new start time (HH:MM):", sched.start);
+      if (!newStart) return;
+
+      const newEnd = prompt("Enter new end time (HH:MM):", sched.end);
+      if (!newEnd) return;
+
+      const newSubject = prompt("Enter new subject:", sched.subject);
+      if (!newSubject) return;
+
+      const newSection = prompt("Enter new section:", sched.section);
+      if (!newSection) return;
+
+      const newTeacher = prompt("Enter new teacher:", sched.teacher);
+      if (!newTeacher) return;
+
+      const payload = {
+        day: newDay,
+        start: newStart,
+        end: newEnd,
+        subject: newSubject,
+        section: newSection,
+        teacher: newTeacher,
+        room_tag: sched.room_tag
+      };
+
+      const patchRes = await fetch(`/api/v1/schedules/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const msg = document.getElementById("message");
+      if (patchRes.ok) {
+        msg.textContent = "✅ Schedule updated!";
+        msg.style.color = "green";
+        loadSchedules();
+      } else {
+        const errText = await patchRes.text();
+        msg.textContent = "❌ Failed: " + errText;
+        msg.style.color = "red";
+      }
+    } catch (err) {
+      console.error("Error updating schedule:", err);
+    }
+  }
+
+    document.getElementById("scheduleForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+      const room_tag = document.getElementById("room").value;
+      const day = document.getElementById("day").value;
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const subject = document.getElementById("subject").value.trim();
+      const section = document.getElementById("section").value.trim();
+      const teacher = document.getElementById("teacher").value.trim();
+
+      //construct the json same as the schedule structure on campus.json
+      // {
+      //   "room-tag": [
+      //         "day": "Mon", "start": hh:mm, "end": hh:mm, "subject": test, "section": test
+      //      ]
+      //  }
+      const payload = {
+        [room_tag]: [
+            { day, start, end, subject, section, teacher }
+        ]};
+
+      try {
+        const res = await fetch("/api/v1/schedules/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        });
+
+        const msg = document.getElementById("message");
+        if (res.ok) {
+        msg.textContent = "✅ Schedule added successfully!";
+        msg.style.color = "green";
+        e.target.reset();
+        loadSchedules();
+        } else {
+        const errText = await res.text();
+        msg.textContent = "❌ Failed: " + errText;
+        msg.style.color = "red";
+        }
+    } catch (err) {
+        console.error(err);
+    }
+    });
+
+    // Init
+    loadRooms();
+    loadSchedules();
+  </script>
+</body>
+</html>

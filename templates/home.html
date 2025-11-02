@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      background: #fff;
+      padding: 40px 60px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-align: center;
+      position: relative;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    button {
+      display: block;
+      width: 200px;
+      margin: 10px auto;
+      padding: 12px;
+      font-size: 16px;
+      color: white;
+      background: #007bff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .logout {
+      background: #dc3545;
+    }
+    .logout:hover {
+      background: #b02a37;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Dashboard</h1>
+    <button onclick="window.location.href='/rooms'">Manage Rooms</button>
+    <button onclick="window.location.href='/schedule'">Manage Schedules</button>
+    <button class="logout" onclick="window.location.href='/logout'">Logout</button>
+  </div>
+</body>
+</html>

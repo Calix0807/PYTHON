@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Room Manager</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 30px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .message {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f1f1f1;
+    }
+    .action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      margin: 0 5px;
+    }
+    .delete-btn { color: red; }
+    .delete-btn:hover { color: darkred; }
+    .edit-btn { color: green; }
+    .edit-btn:hover { color: darkgreen; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+      <button onclick="window.location.href='/home'" style="background:#6c757d; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;">← Back</button>
+    </div>
+    <h2>Add Room</h2>
+    <form id="roomForm">
+      <label for="name">Room Name</label>
+      <input type="text" id="name" name="name" maxlength="80" required>
+
+      <label for="parent">Parent Building</label>
+      <select id="parent" name="parent" required>
+        <option value="">Select a building</option>
+      </select>
+
+      <label for="type">Type</label>
+      <select id="type" name="type" required>
+        <option value="room">Room</option>
+        <option value="CR">CR</option>
+      </select>
+
+      <!-- <label for="image">Future Development</label>
+      <input type="file" id="image" name="image" accept="image/*"> -->
+
+      <button type="submit">Save Room</button>
+    </form>
+    <div id="message" class="message"></div>
+
+    <h2>Existing Rooms</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Parent</th>
+          <th>Type</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="roomsTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let buildings = [];
+
+    async function loadBuildings() {
+      try {
+        const res = await fetch("static/campus.json");
+        const data = await res.json();
+        buildings = data.buildings || [];
+
+        const parentSelect = document.getElementById("parent");
+        parentSelect.innerHTML = `<option value="">Select a building</option>`;
+
+        buildings.forEach(b => {
+          const option = document.createElement("option");
+          option.value = b.id;
+          option.textContent = b.name;
+          parentSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error("Failed to load buildings:", err);
+      }
+    }
+
+    async function loadRooms() {
+      try {
+        const res = await fetch("/api/v1/rooms/");
+        const data = await res.json();
+        const tableBody = document.getElementById("roomsTable");
+        tableBody.innerHTML = "";
+
+        data.forEach(room => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${room.name}</td>
+            <td>${room.parent}</td>
+            <td>${room.type}</td>
+              <button class="action-btn edit-btn" onclick="editRoom(${room.id}, '${room.name}', '${room.parent}', '${room.type}')">✏️</button>
+              <button class="action-btn delete-btn" onclick="deleteRoom(${room.id})">🗑️</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+      } catch (err) {
+        console.error("Failed to load rooms:", err);
+      }
+    }
+
+    async function deleteRoom(id) {
+      if (!confirm("Are you sure you want to delete this room?")) return;
+
+      try {
+        const res = await fetch(`/api/v1/rooms/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          document.getElementById("message").textContent = "✅ Room deleted!";
+          document.getElementById("message").style.color = "green";
+          loadRooms();
+        } else {
+          const errText = await res.text();
+          document.getElementById("message").textContent = "❌ Failed: " + errText;
+          document.getElementById("message").style.color = "red";
+        }
+      } catch (err) {
+        console.error("Error deleting room:", err);
+      }
+    }
+
+    // update room
+    async function editRoom(id, oldName, oldParent, oldType) {
+      try {
+        const newName = prompt("Enter new room name:", oldName);
+        if (!newName || newName.trim() === oldName.trim()) return;
+
+        const tag = newName.replace(/\s+/g, "_").toLowerCase();
+
+        const formData = new FormData();
+        formData.append("name", newName);
+        formData.append("tag", tag);
+
+        const res = await fetch(`/api/v1/rooms/${id}`, {
+          method: "PATCH",
+          body: formData
+        });
+
+        const msg = document.getElementById("message");
+        if (res.ok) {
+          msg.textContent = "✅ Room name updated successfully!";
+          msg.style.color = "green";
+          loadRooms(); // refresh the table
+        } else {
+          const errText = await res.text();
+          msg.textContent = "❌ Failed: " + errText;
+          msg.style.color = "red";
+        }
+      } catch (err) {
+        console.error("Error updating room name:", err);
+      }
+    }
+
+    document.getElementById("roomForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const parentRaw = document.getElementById("parent").value.toLowerCase();
+      const type = document.getElementById("type").value.toLowerCase();
+
+      const tag = name.replace(/\s+/g, "_").toLowerCase();
+      const parent = parentRaw.replace(/\s+/g, "_");
+
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("tag", tag);
+      formData.append("parent", parent);
+      formData.append("type", type);
+
+      try {
+        const res = await fetch("/api/v1/rooms/", {
+          method: "POST",
+          body: formData, // no headers, browser sets them automatically
+        });
+
+        const msg = document.getElementById("message");
+        if (res.ok) {
+          msg.textContent = "✅ Room added successfully!";
+          msg.style.color = "green";
+          e.target.reset();
+          loadRooms();
+        } else {
+          const errText = await res.text();
+          msg.textContent = "❌ Failed: " + errText;
+          msg.style.color = "red";
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    // Init
+    loadBuildings();
+    loadRooms();
+  </script>
+</body>
+</html>
