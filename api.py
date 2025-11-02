@@ -280,4 +280,4 @@ def schedule_page():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()   # delete database.db and uncomment if you want to reset the database
-    app.run(debug=True) 
+    app.run(debug=True, host="0.0.0.1", port=5000)
