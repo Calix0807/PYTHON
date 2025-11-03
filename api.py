@@ -6,7 +6,7 @@ from flask_restx import fields
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsuadmin:s0SaTdPKCgGOBkSpXrK4U4qqMXGCISfH@dpg-d444a72dbo4c73b8i87g-a.singapore-postgres.render.com/bsu_map_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsu_map_db_db0e_user:VjDdY9YT59YmbHkprrPIbhsijok86d6T@dpg-d4459es9c44c73c0b8tg-a.oregon-postgres.render.com/bsu_map_db_db0e'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 api = Api(app)
@@ -179,7 +179,15 @@ class Schedules(Resource):
         db.session.commit()
         return schedules_created, 201
     
-# class Schedule(Resource):
+class Schedule(Resource):
+    @marshal_with(schedfields)
+    def delete(self, id):
+        schedule = ScheduleModel.query.filter_by(id=id).first()
+        if not schedule:
+            abort(404, "Schedule not found")
+        db.session.delete(schedule)
+        db.session.commit()
+        return {"message": f"Schedule with id {id} deleted successfully"}, 204
     
     
 
@@ -268,6 +276,7 @@ def require_login():
 api.add_resource(Rooms, '/api/v1/rooms/')
 api.add_resource(Room, '/api/v1/rooms/<int:id>')
 api.add_resource(Schedules, '/api/v1/schedules/')
+api.add_resource(Schedule, '/api/v1/schedules/<int:id>')
 api.add_resource(RoomScheds, '/api/v1/schedules/<string:room_tag>')
 
 # @app.route("/home")
@@ -283,7 +292,7 @@ def schedule_page():
     return render_template("schedule.html")
 
 if __name__ == '__main__':
-#    with app.app_context():
-   #     db.drop_all()
-    #    db.create_all()   # delete database.db and uncomment if you want to reset the database
+    # with app.app_context():
+        # db.drop_all()
+        # db.create_all()   # delete database.db and uncomment if you want to reset the database
     app.run(debug=True, host="0.0.0.0", port=5000)
