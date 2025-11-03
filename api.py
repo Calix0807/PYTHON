@@ -283,7 +283,7 @@ def schedule_page():
     return render_template("schedule.html")
 
 if __name__ == '__main__':
-    with app.app_context():
+#    with app.app_context():
    #     db.drop_all()
     #    db.create_all()   # delete database.db and uncomment if you want to reset the database
     app.run(debug=True, host="0.0.0.0", port=5000)
