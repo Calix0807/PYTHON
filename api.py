@@ -6,7 +6,7 @@ from flask_restx import fields
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsuadmin:s0SaTdPKCgGOBkSpXrK4U4qqMXGCISfH@dpg-d444a72dbo4c73b8i87g-a/bsu_map_db?sslmode=require'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsuadmin:s0SaTdPKCgGOBkSpXrK4U4qqMXGCISfH@dpg-d444a72dbo4c73b8i87g-a.singapore-postgres.render.com/bsu_map_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 api = Api(app)
@@ -35,7 +35,7 @@ sched_args.add_argument("teacher", type=str, required=True, help="Teacher cannot
 class RoomsModel(db.Model):
     __tablename__ = 'rooms'
     id = db.Column(db.Integer, primary_key=True)
-    tag = db.Column(db.String(60), nullable=False)
+    tag = db.Column(db.String(60), unique=True, nullable=False)
     name = db.Column(db.String(80), unique=True, nullable=False)
     parent = db.Column(db.String(60), nullable=False)
     type = db.Column(db.String(60), nullable=False)
@@ -62,7 +62,7 @@ class ScheduleModel(db.Model):
     section = db.Column(db.String(20), nullable=False)
     teacher = db.Column(db.String(60), nullable=False)
     
-    room_tag = db.Column(db.Integer, db.ForeignKey('rooms.tag'), nullable=False)
+    room_tag = db.Column(db.String(60), db.ForeignKey('rooms.tag'), nullable=False)
     
     #TODO: to be modified if needed
     def __repr__(self):
@@ -284,5 +284,6 @@ def schedule_page():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()   # delete database.db and uncomment if you want to reset the database
+   #     db.drop_all()
+    #    db.create_all()   # delete database.db and uncomment if you want to reset the database
     app.run(debug=True, host="0.0.0.0", port=5000)
