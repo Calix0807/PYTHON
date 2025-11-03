@@ -138,6 +138,14 @@
   </div>
 
   <script>
+    function formatTimeTo12Hour(timeStr) {
+      const [hour, minute] = timeStr.split(":");
+      const h = parseInt(hour);
+      const suffix = h >= 12 ? "PM" : "AM";
+      const hour12 = ((h + 11) % 12 + 1);
+      return `${hour12}:${minute} ${suffix}`;
+    }
+
     async function loadRooms() {
       try {
         const res = await fetch("/api/v1/rooms/");
@@ -169,8 +177,8 @@
           row.innerHTML = `
             <td>${s.room_tag}</td>
             <td>${s.day}</td>
-            <td>${s.start}</td>
-            <td>${s.end}</td>
+            <td>${formatTimeTo12Hour(s.start)}</td>
+            <td>${formatTimeTo12Hour(s.end)}</td>
             <td>${s.subject}</td>
             <td>${s.section}</td>
             <td>${s.teacher}</td>
