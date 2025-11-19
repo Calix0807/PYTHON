@@ -153,7 +153,7 @@
       try {
         // CHANGED: Added ?exclude=CR to the URL
         // Make sure 'CR' matches exactly what is in your database 'type' column.
-        const res = await fetch("/api/v1/rooms/?exclude=Comfort Rooms");
+        const res = await fetch("/api/v1/rooms/?exclude=cr");
         const data = await res.json();
         const roomSelect = document.getElementById("room");
         roomSelect.innerHTML = `<option value="">Select a room</option>`;
