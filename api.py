@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, abort
 from flask_cors import CORS
 from flask_restx import fields
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsuadmin:s0SaTdPKCgGOBkSpXrK4U4qqMXGCISfH@dpg-d444a72dbo4c73b8i87g-a.singapore-postgres.render.com/bsu_map_db'
@@ -182,53 +183,56 @@ class Schedule(Resource):
 class RoomScheds(Resource):
     @marshal_with(schedfields)
     def get(self, room_tag):
+        # 1. Get data from DB
         schedules = ScheduleModel.query.filter_by(room_tag=room_tag).all()
         if not schedules:
             abort(404, "Schedule not found")
 
-        # --- HELPER: DAY ORDER ---
+        # 2. Define Helpers
         day_order = {
             "monday": 1, "tuesday": 2, "wednesday": 3, 
             "thursday": 4, "friday": 5, "saturday": 6, "sunday": 7
         }
 
-        # --- HELPER: ROBUST TIME PARSER ---
-        def parse_time(time_str):
-            if not time_str:
-                return datetime.min.time() # Handle empty strings
-            
-            # 1. Clean the string: remove spaces at ends, make uppercase
-            # This turns "  7:30 am " into "7:30 AM"
-            clean_time = time_str.strip().upper()
-            
-            # 2. Try different formats to prevent crashing/scrambling
-            formats_to_try = [
-                "%I:%M %p",  # "07:30 AM" or "7:30 AM" (Standard)
-                "%I:%M%p",   # "7:30AM" (No space)
-                "%H:%M",     # "14:30" (24-hour format)
-                "%H:%M:%S"   # "14:30:00" (Database timestamp format)
-            ]
+        def get_sort_key(s):
+            try:
+                # --- PARSE DAY ---
+                # Convert DB day to lowercase to match keys (Monday -> monday)
+                d_str = str(s.day).strip().lower()
+                day_val = day_order.get(d_str, 99)
 
-            for fmt in formats_to_try:
+                # --- PARSE TIME ---
+                t_str = str(s.start).strip().upper() # Ensure string, remove spaces, upper case
+                
+                # Try standard 12-hour format (e.g., "07:30 AM")
                 try:
-                    return datetime.strptime(clean_time, fmt).time()
+                    time_val = datetime.strptime(t_str, "%I:%M %p").time()
                 except ValueError:
-                    continue
-            
-            # 3. If all fails, return a default late time so it sits at the bottom
-            # rather than scrambling the top of the list.
-            return datetime.max.time()
+                    # Try 24-hour format just in case (e.g., "14:30")
+                    try:
+                        time_val = datetime.strptime(t_str, "%H:%M").time()
+                    except ValueError:
+                        # Try without space (e.g., "7:30AM")
+                        try:
+                            time_val = datetime.strptime(t_str, "%I:%M%p").time()
+                        except ValueError:
+                            # If all fail, print error to console and push to bottom
+                            print(f"⚠️ TIME FORMAT ERROR: Could not parse '{s.start}' for ID {s.id}")
+                            time_val = datetime.max.time()
 
-        # --- SORTING LOGIC ---
-        # Sort key returns a tuple: (Day Rank, Time Object)
-        schedules.sort(key=lambda s: (
-            day_order.get(s.day.lower().strip(), 99), # Sort by Day
-            parse_time(s.start)                       # Then Sort by Time
-        ))
+                return (day_val, time_val)
+            
+            except Exception as e:
+                print(f"⚠️ GENERAL SORT ERROR: {e}")
+                return (99, datetime.max.time())
+
+        # 3. Apply Sort
+        # We use python's built-in sort which is stable
+        schedules.sort(key=get_sort_key)
 
         return schedules
 
-    # ... (Keep your delete and patch methods exactly as they were) ...
+    # ... (Keep your delete and patch methods below) ...
     @marshal_with(schedfields)
     def delete(self, id):
         schedule = ScheduleModel.query.filter_by(id=id).first()
@@ -244,7 +248,7 @@ class RoomScheds(Resource):
         schedule = ScheduleModel.query.filter_by(id=id).first()
         if not schedule:
             abort(404, "Schedule not found")
-        
+
         schedule.day = args["day"]
         schedule.start = args["start"]
         schedule.end = args["end"]
