@@ -177,87 +177,66 @@ class Schedule(Resource):
         db.session.commit()
         return {"message": f"Schedule {id} deleted"}, 204
 
-# ===============================
-# ROOM SCHEDULE LOOKUP
-# ===============================
+from datetime import datetime 
+
+# ... existing code ...
+
 class RoomScheds(Resource):
     @marshal_with(schedfields)
     def get(self, room_tag):
-        # 1. Get data from DB
         schedules = ScheduleModel.query.filter_by(room_tag=room_tag).all()
         if not schedules:
+            # Use empty list if you want the page to load empty instead of 404 error
+            # return [] 
             abort(404, "Schedule not found")
 
-        # 2. Define Helpers
+        # 1. MAPPING FOR ABBREVIATIONS
+        # We map 3-letter codes to numbers
         day_order = {
-            "monday": 1, "tuesday": 2, "wednesday": 3, 
-            "thursday": 4, "friday": 5, "saturday": 6, "sunday": 7
+            "mon": 1,
+            "tue": 2,
+            "wed": 3,
+            "thu": 4,
+            "fri": 5,
+            "sat": 6,
+            "sun": 7
         }
 
         def get_sort_key(s):
             try:
-                # --- PARSE DAY ---
-                # Convert DB day to lowercase to match keys (Monday -> monday)
-                d_str = str(s.day).strip().lower()
+                # --- STEP A: FIX THE DAY SORTING ---
+                # 1. Get the string (e.g., "Tuesday" or "Tue")
+                # 2. Strip spaces and make lowercase ("tuesday" or "tue")
+                # 3. Slice the first 3 letters only! ("tue")
+                d_str = str(s.day).strip().lower()[:3]
+                
+                # Now "Tue" becomes "tue" and "Tuesday" also becomes "tue"
                 day_val = day_order.get(d_str, 99)
 
-                # --- PARSE TIME ---
-                t_str = str(s.start).strip().upper() # Ensure string, remove spaces, upper case
+                # --- STEP B: FIX THE TIME SORTING ---
+                t_str = str(s.start).strip().upper()
                 
-                # Try standard 12-hour format (e.g., "07:30 AM")
                 try:
+                    # Try standard format "7:00 AM"
                     time_val = datetime.strptime(t_str, "%I:%M %p").time()
                 except ValueError:
-                    # Try 24-hour format just in case (e.g., "14:30")
                     try:
+                        # Try 24-hour "14:00"
                         time_val = datetime.strptime(t_str, "%H:%M").time()
                     except ValueError:
-                        # Try without space (e.g., "7:30AM")
-                        try:
-                            time_val = datetime.strptime(t_str, "%I:%M%p").time()
-                        except ValueError:
-                            # If all fail, print error to console and push to bottom
-                            print(f"⚠️ TIME FORMAT ERROR: Could not parse '{s.start}' for ID {s.id}")
-                            time_val = datetime.max.time()
+                        # Try compact "7:00AM"
+                        time_val = datetime.strptime(t_str, "%I:%M%p").time()
 
                 return (day_val, time_val)
-            
-            except Exception as e:
-                print(f"⚠️ GENERAL SORT ERROR: {e}")
-                return (99, datetime.max.time())
 
-        # 3. Apply Sort
-        # We use python's built-in sort which is stable
+            except Exception:
+                # If data is totally broken, put it at the end
+                return (100, datetime.max.time())
+
+        # Apply the sort
         schedules.sort(key=get_sort_key)
 
         return schedules
-
-    # ... (Keep your delete and patch methods below) ...
-    @marshal_with(schedfields)
-    def delete(self, id):
-        schedule = ScheduleModel.query.filter_by(id=id).first()
-        if not schedule:
-            abort(404, "Schedule not found")
-        db.session.delete(schedule)
-        db.session.commit()
-        return schedule, 204
-
-    @marshal_with(schedfields)
-    def patch(self, id):
-        args = sched_args.parse_args()
-        schedule = ScheduleModel.query.filter_by(id=id).first()
-        if not schedule:
-            abort(404, "Schedule not found")
-
-        schedule.day = args["day"]
-        schedule.start = args["start"]
-        schedule.end = args["end"]
-        schedule.subject = args["subject"]
-        schedule.section = args["section"]
-        schedule.teacher = args["teacher"]
-
-        db.session.commit()
-        return schedule
 
 # ===============================
 # FRONTEND AUTH ROUTES
