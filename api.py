@@ -11,21 +11,22 @@ db = SQLAlchemy(app)
 api = Api(app)
 CORS(app)
 
-# Define request arguments for Room
+# ===============================
+# REQUEST ARGUMENTS
+# ===============================
 rooms_args = reqparse.RequestParser()
-rooms_args.add_argument('name', type=str, required=True, help="Name cannot be blank")
-rooms_args.add_argument('tag', type=str, required=True, help="Tag cannot be blank")
-rooms_args.add_argument('parent', type=str, required=True, help="Building cannot be blank")
-rooms_args.add_argument('type', type=str, required=True, help="Type cannot be blank")
+rooms_args.add_argument('name', type=str, required=True)
+rooms_args.add_argument('tag', type=str, required=True)
+rooms_args.add_argument('parent', type=str, required=True)
+rooms_args.add_argument('type', type=str, required=True)
 
-# Define request arguments for Schedule
 sched_args = reqparse.RequestParser()
-sched_args.add_argument("day", type=str, required=True, help="Day cannot be blank")
-sched_args.add_argument("start", type=str, required=True, help="Start cannot be blank")
-sched_args.add_argument("end", type=str, required=True, help="End cannot be blank")
-sched_args.add_argument("subject", type=str, required=True, help="Subject cannot be blank")
-sched_args.add_argument("section", type=str, required=True, help="Section cannot be blank")
-sched_args.add_argument("teacher", type=str, required=True, help="Teacher cannot be blank")
+sched_args.add_argument("day", type=str, required=True)
+sched_args.add_argument("start", type=str, required=True)
+sched_args.add_argument("end", type=str, required=True)
+sched_args.add_argument("subject", type=str, required=True)
+sched_args.add_argument("section", type=str, required=True)
+sched_args.add_argument("teacher", type=str, required=True)
 
 # ===============================
 # MODELS
@@ -45,10 +46,6 @@ class RoomsModel(db.Model):
         cascade="all, delete-orphan"
     )
 
-    def __repr__(self):
-        return f"<Room {self.name}>"
-
-
 class ScheduleModel(db.Model):
     __tablename__ = 'schedules'
     id = db.Column(db.Integer, primary_key=True)
@@ -61,11 +58,8 @@ class ScheduleModel(db.Model):
 
     room_tag = db.Column(db.String(60), db.ForeignKey('rooms.tag'), nullable=False)
 
-    def __repr__(self):
-        return f"<Schedule {self.subject} in {self.day}>"
-
 # ===============================
-# JSON FIELDS
+# JSON OUTPUT FIELDS
 # ===============================
 roomfields = {
     'id': fields.Integer,
@@ -92,8 +86,7 @@ schedfields = {
 class Rooms(Resource):
     @marshal_with(roomfields)
     def get(self):
-        rooms = RoomsModel.query.all()
-        return rooms
+        return RoomsModel.query.all()
 
     @marshal_with(roomfields)
     def post(self):
@@ -106,7 +99,6 @@ class Rooms(Resource):
         db.session.add(room)
         db.session.commit()
         return room, 201
-
 
 class Room(Resource):
     @marshal_with(roomfields)
@@ -150,31 +142,29 @@ class Room(Resource):
 class Schedules(Resource):
     @marshal_with(schedfields)
     def get(self):
-        schedules = ScheduleModel.query.all()
-        return schedules
+        return ScheduleModel.query.all()
 
     @marshal_with(schedfields)
     def post(self):
         data = request.get_json(force=True)
-        schedules_created = []
+        inserted = []
 
         for room_tag, sched_list in data.items():
-            for sched in sched_list:
+            for s in sched_list:
                 new_sched = ScheduleModel(
-                    day=sched["day"],
-                    start=sched["start"],
-                    end=sched["end"],
-                    subject=sched["subject"],
-                    section=sched["section"],
-                    teacher=sched["teacher"],
+                    day=s["day"],
+                    start=s["start"],
+                    end=s["end"],
+                    subject=s["subject"],
+                    section=s["section"],
+                    teacher=s["teacher"],
                     room_tag=room_tag
                 )
                 db.session.add(new_sched)
-                schedules_created.append(new_sched)
+                inserted.append(new_sched)
 
         db.session.commit()
-        return schedules_created, 201
-
+        return inserted, 201
 
 class Schedule(Resource):
     @marshal_with(schedfields)
@@ -186,7 +176,9 @@ class Schedule(Resource):
         db.session.commit()
         return {"message": f"Schedule {id} deleted"}, 204
 
-
+# ===============================
+# ROOM SCHEDULE LOOKUP
+# ===============================
 class RoomScheds(Resource):
     @marshal_with(schedfields)
     def get(self, room_tag):
@@ -194,7 +186,7 @@ class RoomScheds(Resource):
         if not schedules:
             abort(404, "Schedule not found")
 
-        # SORTING FIX HERE
+        # FIX: SORT BY **DAY ONLY**
         day_order = {
             "Monday": 1,
             "Tuesday": 2,
@@ -205,13 +197,7 @@ class RoomScheds(Resource):
             "Sunday": 7
         }
 
-        schedules.sort(
-            key=lambda s: (
-                day_order.get(s.day, 99),
-                s.start
-            )
-        )
-        # END SORTING FIX
+        schedules.sort(key=lambda s: day_order.get(s.day, 99))
 
         return schedules
 
@@ -220,6 +206,7 @@ class RoomScheds(Resource):
         schedule = ScheduleModel.query.filter_by(id=id).first()
         if not schedule:
             abort(404, "Schedule not found")
+
         db.session.delete(schedule)
         db.session.commit()
         return schedule, 204
@@ -242,7 +229,7 @@ class RoomScheds(Resource):
         return schedule
 
 # ===============================
-# AUTH & ROUTES
+# FRONTEND AUTH ROUTES
 # ===============================
 app.secret_key = "supersecretkey"
 
@@ -282,9 +269,12 @@ def require_login():
         return
     if request.endpoint in allowed_routes:
         return
-    if request.endpoint not in allowed_routes and not session.get("logged_in"):
+    if not session.get("logged_in"):
         return redirect(url_for("login_page"))
 
+# ===============================
+# ROUTE REGISTRATION
+# ===============================
 api.add_resource(Rooms, '/api/v1/rooms/')
 api.add_resource(Room, '/api/v1/rooms/<int:id>')
 api.add_resource(Schedules, '/api/v1/schedules/')
