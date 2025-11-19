@@ -184,47 +184,51 @@ class RoomScheds(Resource):
     def get(self, room_tag):
         schedules = ScheduleModel.query.filter_by(room_tag=room_tag).all()
         if not schedules:
-            # Ideally return empty list [] instead of 404 for UI purposes, 
-            # but keeping your logic here:
             abort(404, "Schedule not found")
 
-        # 1. Define Day Priority
+        # --- HELPER: DAY ORDER ---
         day_order = {
-            "Monday": 1,
-            "Tuesday": 2,
-            "Wednesday": 3,
-            "Thursday": 4,
-            "Friday": 5,
-            "Saturday": 6,
-            "Sunday": 7
+            "monday": 1, "tuesday": 2, "wednesday": 3, 
+            "thursday": 4, "friday": 5, "saturday": 6, "sunday": 7
         }
 
-        # 2. Define the Sorting Function
-        def get_sort_key(s):
-            # A. Get Day Value (Default to 99 if not found)
-            # We use .title() and .strip() to handle "tuesday " or "tuesday" typos
-            clean_day = s.day.strip().title()
-            day_val = day_order.get(clean_day, 99)
+        # --- HELPER: ROBUST TIME PARSER ---
+        def parse_time(time_str):
+            if not time_str:
+                return datetime.min.time() # Handle empty strings
+            
+            # 1. Clean the string: remove spaces at ends, make uppercase
+            # This turns "  7:30 am " into "7:30 AM"
+            clean_time = time_str.strip().upper()
+            
+            # 2. Try different formats to prevent crashing/scrambling
+            formats_to_try = [
+                "%I:%M %p",  # "07:30 AM" or "7:30 AM" (Standard)
+                "%I:%M%p",   # "7:30AM" (No space)
+                "%H:%M",     # "14:30" (24-hour format)
+                "%H:%M:%S"   # "14:30:00" (Database timestamp format)
+            ]
 
-            # B. Get Time Value
-            # We must parse the string "7:30 AM" into a time object
-            try:
-                # FORMAT: "%I:%M %p" matches "07:30 AM" or "7:30 AM"
-                # If you use 24-hour format (14:30), change this to "%H:%M"
-                time_val = datetime.strptime(s.start, "%I:%M %p").time()
-            except ValueError:
-                # Fallback: if time format is wrong, put it at the end
-                time_val = datetime.max.time()
+            for fmt in formats_to_try:
+                try:
+                    return datetime.strptime(clean_time, fmt).time()
+                except ValueError:
+                    continue
+            
+            # 3. If all fails, return a default late time so it sits at the bottom
+            # rather than scrambling the top of the list.
+            return datetime.max.time()
 
-            # Return a tuple: (Day Priority, Time Priority)
-            return (day_val, time_val)
-
-        # 3. Apply the Sort
-        schedules.sort(key=get_sort_key)
+        # --- SORTING LOGIC ---
+        # Sort key returns a tuple: (Day Rank, Time Object)
+        schedules.sort(key=lambda s: (
+            day_order.get(s.day.lower().strip(), 99), # Sort by Day
+            parse_time(s.start)                       # Then Sort by Time
+        ))
 
         return schedules
 
-    # ... keep your delete and patch methods as they were ...
+    # ... (Keep your delete and patch methods exactly as they were) ...
     @marshal_with(schedfields)
     def delete(self, id):
         schedule = ScheduleModel.query.filter_by(id=id).first()
@@ -240,7 +244,7 @@ class RoomScheds(Resource):
         schedule = ScheduleModel.query.filter_by(id=id).first()
         if not schedule:
             abort(404, "Schedule not found")
-            
+        
         schedule.day = args["day"]
         schedule.start = args["start"]
         schedule.end = args["end"]
