@@ -2,8 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, abort
 from flask_cors import CORS
-from flask_restx import fields
-from datetime import datetime
+from flask_restx import fields as restx_fields
+from datetime import datetime  # <--- Moved to top for safety
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bsuadmin:s0SaTdPKCgGOBkSpXrK4U4qqMXGCISfH@dpg-d444a72dbo4c73b8i87g-a.singapore-postgres.render.com/bsu_map_db'
@@ -82,7 +82,39 @@ schedfields = {
 }
 
 # ===============================
-# ROOM API
+# ROOM API (PLURAL)
+# ===============================
+class Rooms(Resource):
+    @marshal_with(roomfields)
+    def get(self):
+        # Allows filtering: /api/v1/rooms/?exclude=CR
+        exclude_type = request.args.get('exclude')
+        filter_type = request.args.get('type')
+
+        query = RoomsModel.query
+
+        if exclude_type:
+             query = query.filter(RoomsModel.type != exclude_type)
+        
+        if filter_type:
+             query = query.filter_by(type=filter_type)
+
+        return query.all()
+
+    @marshal_with(roomfields)
+    def post(self):
+        name = request.form.get("name")
+        tag = request.form.get("tag")
+        parent = request.form.get("parent")
+        type_ = request.form.get("type")
+
+        room = RoomsModel(name=name, tag=tag, parent=parent, type=type_)
+        db.session.add(room)
+        db.session.commit()
+        return room, 201
+
+# ===============================
+# ROOM API (SINGULAR)
 # ===============================
 class Room(Resource):
     @marshal_with(roomfields)
@@ -119,8 +151,9 @@ class Room(Resource):
         db.session.delete(room)
         db.session.commit()
         return room, 204
+
 # ===============================
-# SCHEDULE API
+# SCHEDULE API (LIST / CREATE)
 # ===============================
 class Schedules(Resource):
     @marshal_with(schedfields)
@@ -149,6 +182,9 @@ class Schedules(Resource):
         db.session.commit()
         return inserted, 201
 
+# ===============================
+# SCHEDULE API (SINGLE ITEM ACTION)
+# ===============================
 class Schedule(Resource):
     @marshal_with(schedfields)
     def delete(self, id):
@@ -159,60 +195,68 @@ class Schedule(Resource):
         db.session.commit()
         return {"message": f"Schedule {id} deleted"}, 204
 
-from datetime import datetime 
+    @marshal_with(schedfields)
+    def patch(self, id):
+        args = sched_args.parse_args()
+        schedule = ScheduleModel.query.filter_by(id=id).first()
+        if not schedule:
+            abort(404, "Schedule not found")
+            
+        schedule.day = args["day"]
+        schedule.start = args["start"]
+        schedule.end = args["end"]
+        schedule.subject = args["subject"]
+        schedule.section = args["section"]
+        schedule.teacher = args["teacher"]
 
-# ... existing code ...
+        db.session.commit()
+        return schedule
 
+# ===============================
+# ROOM SCHEDULE LOOKUP (VIEW ONLY)
+# ===============================
 class RoomScheds(Resource):
     @marshal_with(schedfields)
     def get(self, room_tag):
         schedules = ScheduleModel.query.filter_by(room_tag=room_tag).all()
         if not schedules:
-            # Use empty list if you want the page to load empty instead of 404 error
-            # return [] 
+            # Return 404 if you want an error, or empty list [] if preferred
             abort(404, "Schedule not found")
 
         # 1. MAPPING FOR ABBREVIATIONS
-        # We map 3-letter codes to numbers
         day_order = {
-            "mon": 1,
-            "tue": 2,
-            "wed": 3,
-            "thu": 4,
-            "fri": 5,
-            "sat": 6,
-            "sun": 7
+            "mon": 1, "tue": 2, "wed": 3, "thu": 4, 
+            "fri": 5, "sat": 6, "sun": 7
         }
 
         def get_sort_key(s):
             try:
-                # --- STEP A: FIX THE DAY SORTING ---
-                # 1. Get the string (e.g., "Tuesday" or "Tue")
-                # 2. Strip spaces and make lowercase ("tuesday" or "tue")
-                # 3. Slice the first 3 letters only! ("tue")
+                # --- SORT BY DAY ---
+                # Handle "Tue", "Tuesday", "tue " -> "tue"
                 d_str = str(s.day).strip().lower()[:3]
-                
-                # Now "Tue" becomes "tue" and "Tuesday" also becomes "tue"
                 day_val = day_order.get(d_str, 99)
 
-                # --- STEP B: FIX THE TIME SORTING ---
+                # --- SORT BY TIME ---
                 t_str = str(s.start).strip().upper()
                 
                 try:
-                    # Try standard format "7:00 AM"
+                    # Format: "7:00 AM"
                     time_val = datetime.strptime(t_str, "%I:%M %p").time()
                 except ValueError:
                     try:
-                        # Try 24-hour "14:00"
+                        # Format: "14:00"
                         time_val = datetime.strptime(t_str, "%H:%M").time()
                     except ValueError:
-                        # Try compact "7:00AM"
-                        time_val = datetime.strptime(t_str, "%I:%M%p").time()
+                        try:
+                            # Format: "7:00AM"
+                            time_val = datetime.strptime(t_str, "%I:%M%p").time()
+                        except ValueError:
+                             # Fallback
+                             time_val = datetime.max.time()
 
                 return (day_val, time_val)
 
             except Exception:
-                # If data is totally broken, put it at the end
                 return (100, datetime.max.time())
 
         # Apply the sort
