@@ -84,41 +84,41 @@ schedfields = {
 # ===============================
 # ROOM API
 # ===============================
-class Rooms(Resource):
+class Room(Resource):
     @marshal_with(roomfields)
-    def get(self):
-        # Check if there is a 'type' filter in the URL
-        # Example usage: /api/v1/rooms/?type=Classroom
-        filter_type = request.args.get('type')
-        
-        # Check if there is a request to 'exclude' a type
-        # Example usage: /api/v1/rooms/?exclude=CR
-        exclude_type = request.args.get('exclude')
-
-        query = RoomsModel.query
-
-        if filter_type:
-            # Only return rows that MATCH the type
-            query = query.filter_by(type=filter_type)
-        
-        if exclude_type:
-            # Return rows that DO NOT match the type
-            query = query.filter(RoomsModel.type != exclude_type)
-
-        return query.all()
+    def get(self, id):
+        room = RoomsModel.query.filter_by(id=id).first()
+        if not room:
+            abort(404, "Room not found")
+        return room
 
     @marshal_with(roomfields)
-    def post(self):
-        # ... (Keep your existing POST code here) ...
+    def patch(self, id):
+        room = RoomsModel.query.filter_by(id=id).first()
+        if not room:
+            abort(404, "Room not found")
+
         name = request.form.get("name")
         tag = request.form.get("tag")
         parent = request.form.get("parent")
         type_ = request.form.get("type")
 
-        room = RoomsModel(name=name, tag=tag, parent=parent, type=type_)
-        db.session.add(room)
+        if name: room.name = name
+        if tag: room.tag = tag
+        if parent: room.parent = parent
+        if type_: room.type = type_
+
         db.session.commit()
-        return room, 201
+        return room
+
+    @marshal_with(roomfields)
+    def delete(self, id):
+        room = RoomsModel.query.filter_by(id=id).first()
+        if not room:
+            abort(404, "Room not found")
+        db.session.delete(room)
+        db.session.commit()
+        return room, 204
 # ===============================
 # SCHEDULE API
 # ===============================
