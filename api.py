@@ -184,9 +184,11 @@ class RoomScheds(Resource):
     def get(self, room_tag):
         schedules = ScheduleModel.query.filter_by(room_tag=room_tag).all()
         if not schedules:
+            # Ideally return empty list [] instead of 404 for UI purposes, 
+            # but keeping your logic here:
             abort(404, "Schedule not found")
 
-        # FIX: SORT BY **DAY ONLY**
+        # 1. Define Day Priority
         day_order = {
             "Monday": 1,
             "Tuesday": 2,
@@ -197,16 +199,37 @@ class RoomScheds(Resource):
             "Sunday": 7
         }
 
-        schedules.sort(key=lambda s: day_order.get(s.day, 99))
+        # 2. Define the Sorting Function
+        def get_sort_key(s):
+            # A. Get Day Value (Default to 99 if not found)
+            # We use .title() and .strip() to handle "tuesday " or "tuesday" typos
+            clean_day = s.day.strip().title()
+            day_val = day_order.get(clean_day, 99)
+
+            # B. Get Time Value
+            # We must parse the string "7:30 AM" into a time object
+            try:
+                # FORMAT: "%I:%M %p" matches "07:30 AM" or "7:30 AM"
+                # If you use 24-hour format (14:30), change this to "%H:%M"
+                time_val = datetime.strptime(s.start, "%I:%M %p").time()
+            except ValueError:
+                # Fallback: if time format is wrong, put it at the end
+                time_val = datetime.max.time()
+
+            # Return a tuple: (Day Priority, Time Priority)
+            return (day_val, time_val)
+
+        # 3. Apply the Sort
+        schedules.sort(key=get_sort_key)
 
         return schedules
 
+    # ... keep your delete and patch methods as they were ...
     @marshal_with(schedfields)
     def delete(self, id):
         schedule = ScheduleModel.query.filter_by(id=id).first()
         if not schedule:
             abort(404, "Schedule not found")
-
         db.session.delete(schedule)
         db.session.commit()
         return schedule, 204
@@ -217,7 +240,7 @@ class RoomScheds(Resource):
         schedule = ScheduleModel.query.filter_by(id=id).first()
         if not schedule:
             abort(404, "Schedule not found")
-
+            
         schedule.day = args["day"]
         schedule.start = args["start"]
         schedule.end = args["end"]
