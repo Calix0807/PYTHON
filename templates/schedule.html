@@ -111,7 +111,7 @@
 
       <label for="section">Section</label>
       <input type="text" id="section" name="section" required>
-  
+   
       <label for="teacher">Teacher</label>
       <input type="text" id="teacher" name="teacher" required>
 
@@ -146,17 +146,22 @@
       return `${hour12}:${minute} ${suffix}`;
     }
 
+    // ==========================================
+    // FIXED: LOAD ROOMS WITH EXCLUSION
+    // ==========================================
     async function loadRooms() {
       try {
-        const res = await fetch("/api/v1/rooms/");
+        // CHANGED: Added ?exclude=CR to the URL
+        // Make sure 'CR' matches exactly what is in your database 'type' column.
+        const res = await fetch("/api/v1/rooms/?exclude=CR");
         const data = await res.json();
         const roomSelect = document.getElementById("room");
         roomSelect.innerHTML = `<option value="">Select a room</option>`;
 
         data.forEach(r => {
           const option = document.createElement("option");
-          option.value = r.tag;   // backend will store tag (like "mb-101")
-          option.textContent = r.name; // user sees room name
+          option.value = r.tag;   
+          option.textContent = r.name; 
           roomSelect.appendChild(option);
         });
       } catch (err) {
@@ -171,7 +176,6 @@
         const tableBody = document.getElementById("schedulesTable");
         tableBody.innerHTML = "";
 
-        // Expecting API to return array of schedules including room_tag
         data.forEach(s => {
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -183,7 +187,6 @@
             <td>${s.section}</td>
             <td>${s.teacher}</td>
             <td>
-           <!--   <button class="action-btn edit-btn" onclick="editSchedule(${s.id})">✏️</button> -->
               <button class="action-btn delete-btn" onclick="deleteSchedule(${s.id})">🗑️</button>
             </td>
           `;
@@ -212,64 +215,66 @@
       }
     }
 
-     async function editSchedule(id) {
-    try {
-      const res = await fetch(`/api/v1/schedules/`);
-      const data = await res.json();
-      const sched = data.find(s => s.id === id);
-      if (!sched) return alert("Schedule not found.");
+    // Note: kept your edit function logic but it wasn't used in the HTML buttons above.
+    // To use it, uncomment the edit button in loadSchedules.
+    async function editSchedule(id) {
+      try {
+        const res = await fetch(`/api/v1/schedules/`);
+        const data = await res.json();
+        const sched = data.find(s => s.id === id);
+        if (!sched) return alert("Schedule not found.");
 
-      const newDay = prompt("Enter new day (Mon/Tue/Wed/Thu/Fri/Sat/Sun):", sched.day);
-      if (!newDay) return;
+        const newDay = prompt("Enter new day (Mon/Tue/Wed/Thu/Fri/Sat/Sun):", sched.day);
+        if (!newDay) return;
 
-      const newStart = prompt("Enter new start time (HH:MM):", sched.start);
-      if (!newStart) return;
+        const newStart = prompt("Enter new start time (HH:MM):", sched.start);
+        if (!newStart) return;
 
-      const newEnd = prompt("Enter new end time (HH:MM):", sched.end);
-      if (!newEnd) return;
+        const newEnd = prompt("Enter new end time (HH:MM):", sched.end);
+        if (!newEnd) return;
 
-      const newSubject = prompt("Enter new subject:", sched.subject);
-      if (!newSubject) return;
+        const newSubject = prompt("Enter new subject:", sched.subject);
+        if (!newSubject) return;
 
-      const newSection = prompt("Enter new section:", sched.section);
-      if (!newSection) return;
+        const newSection = prompt("Enter new section:", sched.section);
+        if (!newSection) return;
 
-      const newTeacher = prompt("Enter new teacher:", sched.teacher);
-      if (!newTeacher) return;
+        const newTeacher = prompt("Enter new teacher:", sched.teacher);
+        if (!newTeacher) return;
 
-      const payload = {
-        day: newDay,
-        start: newStart,
-        end: newEnd,
-        subject: newSubject,
-        section: newSection,
-        teacher: newTeacher,
-        room_tag: sched.room_tag
-      };
+        const payload = {
+          day: newDay,
+          start: newStart,
+          end: newEnd,
+          subject: newSubject,
+          section: newSection,
+          teacher: newTeacher,
+          room_tag: sched.room_tag
+        };
 
-      const patchRes = await fetch(`/api/v1/schedules/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+        const patchRes = await fetch(`/api/v1/schedules/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      const msg = document.getElementById("message");
-      if (patchRes.ok) {
-        msg.textContent = "✅ Schedule updated!";
-        msg.style.color = "green";
-        loadSchedules();
-      } else {
-        const errText = await patchRes.text();
-        msg.textContent = "❌ Failed: " + errText;
-        msg.style.color = "red";
+        const msg = document.getElementById("message");
+        if (patchRes.ok) {
+          msg.textContent = "✅ Schedule updated!";
+          msg.style.color = "green";
+          loadSchedules();
+        } else {
+          const errText = await patchRes.text();
+          msg.textContent = "❌ Failed: " + errText;
+          msg.style.color = "red";
+        }
+      } catch (err) {
+        console.error("Error updating schedule:", err);
       }
-    } catch (err) {
-      console.error("Error updating schedule:", err);
     }
-  }
 
     document.getElementById("scheduleForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
+       e.preventDefault();
 
       const room_tag = document.getElementById("room").value;
       const day = document.getElementById("day").value;
@@ -279,12 +284,6 @@
       const section = document.getElementById("section").value.trim();
       const teacher = document.getElementById("teacher").value.trim();
 
-      //construct the json same as the schedule structure on campus.json
-      // {
-      //   "room-tag": [
-      //         "day": "Mon", "start": hh:mm, "end": hh:mm, "subject": test, "section": test
-      //      ]
-      //  }
       const payload = {
         [room_tag]: [
             { day, start, end, subject, section, teacher }
@@ -308,9 +307,9 @@
         msg.textContent = "❌ Failed: " + errText;
         msg.style.color = "red";
         }
-    } catch (err) {
+      } catch (err) {
         console.error(err);
-    }
+      }
     });
 
     // Init
