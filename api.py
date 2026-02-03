@@ -7,7 +7,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, abort
 from flask_cors import CORS
 from flask_migrate import Migrate
-migrate = Migrate(app, db)
 
 # ===============================
 # APP CONFIG
@@ -46,6 +45,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey")
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 api = Api(app)
 CORS(app)
 
